@@ -1,0 +1,973 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>软件管家 · 可点击原型</title>
+<style>
+  /* ============ 基础 ============ */
+  *{ box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  html,body{ height:100%; }
+  body{
+    margin:0;
+    font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Helvetica Neue","Microsoft YaHei",sans-serif;
+    color:#111827;
+    background:#EEF1F5;
+    background-image:
+      radial-gradient(circle at 16% 8%, #dbe8ff 0, transparent 42%),
+      radial-gradient(circle at 86% 88%, #dcf6e6 0, transparent 42%);
+    display:flex; align-items:center; justify-content:center; gap:52px;
+    min-height:100vh; padding:24px;
+  }
+  button{ font-family:inherit; border:none; background:none; cursor:pointer; color:inherit; padding:0; }
+  input,textarea{ font-family:inherit; }
+
+  /* ============ 手机外壳 ============ */
+  .device{
+    position:relative;
+    width:390px;
+    height:min(844px, calc(100vh - 48px));
+    background:#14161b;
+    border-radius:52px;
+    padding:9px;
+    box-shadow:0 30px 70px rgba(16,24,40,.32), 0 4px 14px rgba(16,24,40,.18);
+    flex:0 0 auto;
+  }
+  .screen{
+    position:relative; width:100%; height:100%;
+    border-radius:44px; overflow:hidden; background:#F5F6F8;
+    isolation:isolate;
+  }
+
+  /* ============ 状态栏 & 胶囊 ============ */
+  .statusbar{
+    position:absolute; top:0; left:0; right:0; height:44px; z-index:60;
+    display:flex; align-items:center; justify-content:space-between;
+    padding:0 26px; pointer-events:none; background:#fff;
+  }
+  .status-time{ font-size:14px; font-weight:600; letter-spacing:.3px; color:#111827; }
+  .status-icons{ display:flex; align-items:center; gap:5px; }
+  .capsule{
+    position:absolute; top:50px; right:14px; z-index:61;
+    width:88px; height:32px; border-radius:16px;
+    background:rgba(255,255,255,.75); backdrop-filter:blur(8px);
+    border:.5px solid rgba(17,24,39,.14);
+    display:flex; align-items:center; justify-content:space-between;
+    padding:0 11px; pointer-events:none;
+  }
+  .capsule .divider{ width:.5px; height:16px; background:rgba(17,24,39,.16); }
+  .capsule .circles{ display:flex; align-items:center; gap:0; margin-top:-2px; }
+  .capsule .circles i{ width:3.5px; height:3.5px; border-radius:50%; background:#111827; margin:0 1.1px; display:block; }
+  .capsule .ring{ width:14px; height:14px; border:1.6px solid #111827; border-radius:50%; display:block; position:relative; }
+  .capsule .ring::after{ content:""; position:absolute; inset:3.4px; background:#111827; border-radius:50%; }
+
+  /* ============ 页面容器 / 转场 ============ */
+  .pages{ position:absolute; inset:0; }
+  .page{
+    position:absolute; inset:0; display:flex; flex-direction:column;
+    background:#F5F6F8;
+    transform:translateX(100%);
+    transition:transform .36s cubic-bezier(.32,.85,.3,1), filter .36s ease;
+    will-change:transform;
+    box-shadow:-10px 0 30px rgba(16,24,40,.10);
+    pointer-events:none; visibility:hidden;
+  }
+  .page.behind{ transform:translateX(-26%); filter:brightness(.97); visibility:visible; pointer-events:none; box-shadow:none; }
+  .page.active{ transform:translateX(0); filter:none; visibility:visible; pointer-events:auto; box-shadow:none; }
+
+  /* ============ 导航栏 ============ */
+  .nav{
+    flex:0 0 auto; height:88px; padding-top:44px;
+    display:flex; align-items:center; justify-content:center;
+    position:relative; background:#fff; z-index:5;
+    box-shadow:0 1px 0 rgba(17,24,39,.05);
+  }
+  .nav-title{ font-size:17px; font-weight:600; letter-spacing:.3px; }
+  .nav-back{
+    position:absolute; left:6px; top:44px; width:46px; height:44px;
+    display:flex; align-items:center; justify-content:center;
+  }
+  .nav-back:active{ opacity:.5; }
+
+  /* ============ 页面内容区 ============ */
+  .page-body{ flex:1; overflow-y:auto; overscroll-behavior:contain; -webkit-overflow-scrolling:touch; }
+  .page-body::-webkit-scrollbar{ width:0; }
+
+  /* ============ 首页 ============ */
+  .home-panel{ flex:0 0 auto; background:#fff; padding:14px 16px 14px; border-bottom:1px solid #F0F2F5; }
+  .home-meta{ display:flex; align-items:center; justify-content:space-between; margin-bottom:12px; }
+  .home-meta .label{ font-size:13px; color:#6B7280; }
+  .home-meta .label b{ color:#111827; font-size:15px; margin-left:2px; }
+  .home-meta .tip{ font-size:12px; color:#A0A6B1; }
+
+  .btn-primary{
+    display:flex; align-items:center; justify-content:center; gap:6px;
+    width:100%; height:46px; border-radius:23px;
+    background:linear-gradient(180deg,#0BC465,#07AD55);
+    color:#fff; font-size:16px; font-weight:600; letter-spacing:.5px;
+    box-shadow:0 6px 16px rgba(7,193,96,.28);
+    transition:transform .15s ease, box-shadow .15s ease, opacity .15s ease;
+  }
+  .btn-primary:active{ transform:scale(.975); box-shadow:0 3px 10px rgba(7,193,96,.22); }
+
+  .sw-list{ padding:12px 16px 8px; display:flex; flex-direction:column; gap:10px; }
+  .sw-item{
+    display:flex; align-items:center; gap:12px; width:100%;
+    background:#fff; border-radius:16px; padding:14px;
+    box-shadow:0 1px 2px rgba(16,24,40,.04), 0 6px 16px rgba(16,24,40,.04);
+    text-align:left; transition:transform .16s ease, box-shadow .16s ease;
+  }
+  .sw-item:active{ transform:scale(.982); box-shadow:0 1px 2px rgba(16,24,40,.05); }
+  .sw-avatar{
+    flex:0 0 auto; width:44px; height:44px; border-radius:13px;
+    display:flex; align-items:center; justify-content:center;
+    color:#fff; font-size:15px; font-weight:700; letter-spacing:.5px;
+    background:var(--c,#6B7280);
+    box-shadow:inset 0 -1px 2px rgba(0,0,0,.12);
+  }
+  .sw-info{ flex:1; min-width:0; }
+  .sw-name{
+    font-size:15px; font-weight:600; color:#111827; line-height:1.35;
+    white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+  }
+  .sw-desc{
+    margin-top:3px; font-size:12.5px; color:#9AA1AC; line-height:1.4;
+    white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+  }
+  .sw-side{ flex:0 0 auto; display:flex; align-items:center; gap:6px; }
+  .sw-filled{ font-size:11px; color:#B6BCC6; font-variant-numeric:tabular-nums; }
+  .sw-filled.full{ color:#07C160; }
+  .sw-chevron{ color:#C9CED6; display:flex; }
+
+  .list-foot{ padding:16px 16px 28px; text-align:center; font-size:11.5px; color:#B6BCC6; letter-spacing:.2px; }
+
+  /* ============ 详情页 ============ */
+  .detail-hero{
+    display:flex; align-items:center; gap:14px;
+    padding:20px 16px 18px; background:#fff;
+  }
+  .hero-avatar{
+    width:56px; height:56px; border-radius:17px; flex:0 0 auto;
+    display:flex; align-items:center; justify-content:center;
+    color:#fff; font-size:18px; font-weight:700;
+    background:var(--c,#6B7280);
+    box-shadow:inset 0 -1px 3px rgba(0,0,0,.14), 0 6px 14px rgba(16,24,40,.12);
+  }
+  .hero-info{ min-width:0; }
+  .hero-name{ font-size:19px; font-weight:700; letter-spacing:.2px; line-height:1.3; }
+  .hero-tag{
+    display:inline-flex; align-items:center; height:20px; padding:0 8px;
+    margin-top:7px; border-radius:10px; font-size:11px; color:#4B5563;
+    background:#F2F4F7; letter-spacing:.2px;
+  }
+  .detail-content{ padding:14px 16px 24px; display:flex; flex-direction:column; gap:12px; }
+  .block{ background:#fff; border-radius:16px; padding:16px; }
+  .block-title{
+    display:flex; align-items:center; gap:7px;
+    font-size:14px; font-weight:600; color:#111827; margin-bottom:10px;
+  }
+  .block-title::before{ content:""; width:3px; height:13px; border-radius:2px; background:#07C160; }
+  .block-text{ font-size:13.5px; line-height:1.75; color:#4B5563; }
+  .url-row{
+    display:flex; align-items:center; gap:10px;
+    background:#F7F9FA; border-radius:12px; padding:11px 12px;
+  }
+  .url-text{
+    flex:1; min-width:0; font-size:12.5px; color:#0B69C7; line-height:1.5;
+    word-break:break-all;
+  }
+  .btn-copy{
+    flex:0 0 auto; height:28px; padding:0 12px; border-radius:14px;
+    background:#fff; color:#07AD55; font-size:12px; font-weight:600;
+    border:1px solid rgba(7,193,96,.35);
+  }
+  .btn-copy:active{ background:rgba(7,193,96,.08); }
+
+  .steps{ list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:12px; }
+  .steps li{ display:flex; gap:10px; }
+  .steps .idx{
+    flex:0 0 auto; width:20px; height:20px; border-radius:50%;
+    background:#EAF9F1; color:#07AD55; font-size:11px; font-weight:700;
+    display:flex; align-items:center; justify-content:center; margin-top:1px;
+  }
+  .steps .txt{ font-size:13.5px; line-height:1.7; color:#4B5563; }
+
+  .notes{ list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:10px; }
+  .notes li{
+    position:relative; padding-left:16px; font-size:13.5px; line-height:1.7; color:#4B5563;
+  }
+  .notes li::before{
+    content:""; position:absolute; left:2px; top:9px;
+    width:5px; height:5px; border-radius:50%; background:#F0A93B;
+  }
+  .empty{
+    font-size:13px; color:#B6BCC6; background:#F7F8FA; border-radius:10px;
+    padding:11px 12px; line-height:1.5;
+  }
+
+  .bottom-bar{
+    flex:0 0 auto; background:#fff; padding:10px 16px 14px;
+    border-top:1px solid #F0F2F5;
+    box-shadow:0 -6px 18px rgba(16,24,40,.04);
+  }
+  .bottom-bar .btn-primary{ height:44px; border-radius:22px; font-size:15.5px; }
+
+  /* ============ 表单页 ============ */
+  .form-body{ padding:14px 16px 28px; display:flex; flex-direction:column; gap:12px; }
+  .form-hint{
+    font-size:12px; color:#9AA1AC; line-height:1.6; padding:0 4px;
+  }
+  .form-hint em{ color:#F04438; font-style:normal; }
+  .field{ background:#fff; border-radius:14px; padding:12px 14px 14px; }
+  .field-label{ display:flex; align-items:center; gap:4px; font-size:12.5px; color:#6B7280; margin-bottom:8px; }
+  .field-label .req{ color:#F04438; font-size:13px; line-height:1; }
+  .field-label .opt{ font-size:11px; color:#B6BCC6; margin-left:2px; }
+  .field input,.field textarea{
+    width:100%; border:1px solid #EDEFF2; background:#F8F9FB; border-radius:10px;
+    padding:10px 12px; font-size:14px; color:#111827; outline:none;
+    transition:border-color .18s ease, background .18s ease;
+  }
+  .field textarea{ resize:none; line-height:1.65; min-height:78px; }
+  .field input::placeholder,.field textarea::placeholder{ color:#C3C8D0; }
+  .field input:focus,.field textarea:focus{ border-color:rgba(7,193,96,.55); background:#fff; }
+  .field.error input{ border-color:#F04438; background:#FFF7F6; animation:shake .3s ease; }
+  @keyframes shake{
+    0%,100%{ transform:translateX(0); }
+    25%{ transform:translateX(-4px); }
+    75%{ transform:translateX(4px); }
+  }
+  .field-tip{ margin-top:6px; font-size:11px; color:#B6BCC6; }
+
+  /* ============ Toast ============ */
+  .toast{
+    position:absolute; left:50%; bottom:120px; transform:translate(-50%,8px);
+    background:rgba(17,24,39,.86); color:#fff; font-size:13px;
+    padding:9px 16px; border-radius:10px; z-index:80;
+    opacity:0; pointer-events:none; transition:opacity .22s ease, transform .22s ease;
+    max-width:80%; text-align:center; letter-spacing:.2px;
+  }
+  .toast.show{ opacity:1; transform:translate(-50%,0); }
+
+  /* ============ 右侧页面地图 ============ */
+  .map{
+    width:286px; flex:0 0 auto; background:rgba(255,255,255,.86);
+    backdrop-filter:blur(14px); border-radius:22px; padding:24px 22px;
+    box-shadow:0 18px 50px rgba(16,24,40,.10);
+    border:1px solid rgba(255,255,255,.9);
+  }
+  .map h2{ margin:0; font-size:16px; font-weight:700; letter-spacing:.4px; }
+  .map .sub{ margin:8px 0 18px; font-size:12px; color:#8A93A0; line-height:1.6; }
+  .map .sub b{ color:#07AD55; }
+  .map-item{
+    display:flex; align-items:center; gap:10px; width:100%;
+    padding:11px 12px; border-radius:12px; cursor:pointer;
+    transition:background .18s ease;
+    text-align:left;
+  }
+  .map-item:hover{ background:rgba(7,193,96,.06); }
+  .map-item.current{ background:rgba(7,193,96,.10); }
+  .map-dot{
+    width:22px; height:22px; border-radius:50%; flex:0 0 auto;
+    background:#EDF0F4; color:#8A93A0; font-size:11px; font-weight:700;
+    display:flex; align-items:center; justify-content:center;
+  }
+  .map-item.current .map-dot{ background:#07C160; color:#fff; }
+  .map-txt{ flex:1; min-width:0; }
+  .map-name{ font-size:13px; font-weight:600; color:#1F2937; }
+  .map-step{ font-size:11px; color:#9AA1AC; margin-top:2px; }
+  .map-line{ width:1px; height:10px; background:#E5E8ED; margin-left:23px; }
+  .map-note{
+    margin-top:18px; padding-top:16px; border-top:1px dashed #E5E8ED;
+    font-size:11.5px; color:#9AA1AC; line-height:1.7;
+  }
+
+  /* ============ 小屏适配 ============ */
+  @media (max-width:1080px){
+    .map{ display:none; }
+    body{ gap:0; }
+  }
+  @media (max-width:460px), (max-height:700px){
+    body{ padding:0; }
+    .device{
+      width:100%; height:100vh; border-radius:0; padding:0; box-shadow:none;
+    }
+    .screen{ border-radius:0; }
+    .statusbar{ height:40px; }
+    .capsule{ top:46px; }
+    .nav{ height:84px; padding-top:40px; }
+    .nav-back{ top:40px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="device">
+  <div class="screen" id="screen">
+
+    <!-- 状态栏（全局固定） -->
+    <div class="statusbar">
+      <div class="status-time">9:41</div>
+      <div class="status-icons">
+        <svg width="17" height="11" viewBox="0 0 17 11" fill="#111827"><rect x="0" y="7" width="3" height="4" rx="1"/><rect x="4.5" y="5" width="3" height="6" rx="1"/><rect x="9" y="2.5" width="3" height="8.5" rx="1"/><rect x="13.5" y="0" width="3" height="11" rx="1"/></svg>
+        <svg width="16" height="11" viewBox="0 0 16 11" fill="none"><path d="M8 9.6 6.2 7.8a2.6 2.6 0 0 1 3.6 0L8 9.6Z" fill="#111827"/><path d="M8 5.2c-1.4 0-2.7.55-3.6 1.45L3 5.2a7.1 7.1 0 0 1 10 0l-1.4 1.45A5 5 0 0 0 8 5.2Z" fill="#111827"/><path d="M8 1.4c-2.4 0-4.6.93-6.2 2.5L.4 2.5A10.8 10.8 0 0 1 15.6 2.5L14.2 3.9A9 9 0 0 0 8 1.4Z" fill="#111827"/></svg>
+        <svg width="25" height="12" viewBox="0 0 25 12" fill="none"><rect x=".5" y=".5" width="21" height="11" rx="3" stroke="#111827" opacity=".4"/><rect x="2" y="2" width="16" height="8" rx="1.8" fill="#111827"/><path d="M23 4v4a2 2 0 0 0 0-4Z" fill="#111827" opacity=".45"/></svg>
+      </div>
+    </div>
+
+    <!-- 小程序胶囊（全局固定） -->
+    <div class="capsule" aria-hidden="true">
+      <span class="circles"><i></i><i></i><i></i></span>
+      <span class="divider"></span>
+      <span class="ring"></span>
+    </div>
+
+    <div class="pages">
+
+      <!-- ==================== 页面 1：首屏软件列表 ==================== -->
+      <section class="page active" id="page-home">
+        <div class="nav"><div class="nav-title">软件管家</div></div>
+
+        <div class="home-panel">
+          <div class="home-meta">
+            <span class="label">全部软件 <b id="home-count">6</b></span>
+            <span class="tip">点击查看详情</span>
+          </div>
+          <button class="btn-primary" id="btn-add">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M8 3v10M3 8h10" stroke="#fff" stroke-width="1.9" stroke-linecap="round"/></svg>
+            新增软件
+          </button>
+        </div>
+
+        <div class="page-body">
+          <div class="sw-list" id="home-list"></div>
+          <div class="list-foot">原型演示数据 · 未接入真实数据库</div>
+        </div>
+      </section>
+
+      <!-- ==================== 页面 2：软件详情 ==================== -->
+      <section class="page" id="page-detail">
+        <div class="nav">
+          <button class="nav-back" data-back aria-label="返回">
+            <svg width="11" height="19" viewBox="0 0 11 19" fill="none"><path d="M9.5 1.5 2 9.5l7.5 8" stroke="#111827" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </button>
+          <div class="nav-title">软件详情</div>
+        </div>
+
+        <div class="page-body">
+          <div class="detail-hero">
+            <div class="hero-avatar" id="detail-avatar">VS</div>
+            <div class="hero-info">
+              <div class="hero-name" id="detail-name">Visual Studio Code</div>
+              <span class="hero-tag" id="detail-tag">开发工具</span>
+            </div>
+          </div>
+
+          <div class="detail-content">
+            <div class="block">
+              <div class="block-title">下载地址</div>
+              <div id="detail-url"></div>
+            </div>
+
+            <div class="block">
+              <div class="block-title">核心功能</div>
+              <div id="detail-funcs"></div>
+            </div>
+
+            <div class="block">
+              <div class="block-title">安装方法</div>
+              <div id="detail-steps"></div>
+            </div>
+
+            <div class="block">
+              <div class="block-title">注意事项</div>
+              <div id="detail-notes"></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="bottom-bar">
+          <button class="btn-primary" id="btn-edit">
+            <svg width="15" height="15" viewBox="0 0 16 16" fill="none"><path d="M11.3 2.2a1.9 1.9 0 0 1 2.7 2.7L5.5 13.4 2 14l.6-3.5 8.7-8.3Z" stroke="#fff" stroke-width="1.5" stroke-linejoin="round"/></svg>
+            编辑
+          </button>
+        </div>
+      </section>
+
+      <!-- ==================== 页面 3/4：新增 / 编辑表单 ==================== -->
+      <section class="page" id="page-form">
+        <div class="nav">
+          <button class="nav-back" data-back aria-label="返回">
+            <svg width="11" height="19" viewBox="0 0 11 19" fill="none"><path d="M9.5 1.5 2 9.5l7.5 8" stroke="#111827" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </button>
+          <div class="nav-title" id="form-nav-title">新增软件</div>
+        </div>
+
+        <div class="page-body">
+          <div class="form-body">
+            <div class="form-hint">带 <em>*</em> 为必填项，其余内容可按需填写，留空不影响保存。</div>
+
+            <div class="field" id="field-name">
+              <div class="field-label">软件名称 <span class="req">*</span></div>
+              <input id="f-name" type="text" placeholder="例如：Visual Studio Code" maxlength="40">
+            </div>
+
+            <div class="field">
+              <div class="field-label">下载地址 <span class="opt">选填</span></div>
+              <input id="f-url" type="text" placeholder="https://" maxlength="200">
+            </div>
+
+            <div class="field">
+              <div class="field-label">软件功能 <span class="opt">选填</span></div>
+              <textarea id="f-funcs" placeholder="简单描述这个软件能做什么" maxlength="300" rows="3"></textarea>
+            </div>
+
+            <div class="field">
+              <div class="field-label">安装方法 <span class="opt">选填</span></div>
+              <textarea id="f-steps" placeholder="每行写一个步骤，例如：&#10;1. 下载安装包&#10;2. 双击运行并下一步" maxlength="600" rows="4"></textarea>
+              <div class="field-tip">按行录入，详情页会自动编号展示</div>
+            </div>
+
+            <div class="field">
+              <div class="field-label">注意事项 <span class="opt">选填</span></div>
+              <textarea id="f-notes" placeholder="每行写一条注意事项" maxlength="400" rows="3"></textarea>
+            </div>
+          </div>
+        </div>
+
+        <div class="bottom-bar">
+          <button class="btn-primary" id="btn-save">保存</button>
+        </div>
+      </section>
+
+    </div>
+
+    <!-- Toast -->
+    <div class="toast" id="toast"></div>
+  </div>
+</div>
+
+<!-- ==================== 右侧页面地图 ==================== -->
+<aside class="map">
+  <h2>页面地图</h2>
+  <p class="sub">共 <b>4 个页面</b>，对应最短通关路径 <b>3 步</b>。<br>点击下方任意页面可直接跳转。</p>
+
+  <button class="map-item" data-target="home">
+    <span class="map-dot">1</span>
+    <span class="map-txt"><span class="map-name">首屏 · 软件列表</span><br><span class="map-step">路径第 1 步 · 顶部「新增软件」</span></span>
+  </button>
+  <div class="map-line"></div>
+  <button class="map-item" data-target="detail">
+    <span class="map-dot">2</span>
+    <span class="map-txt"><span class="map-name">软件详情页</span><br><span class="map-step">路径第 2 步 · 底部「编辑」</span></span>
+  </button>
+  <div class="map-line"></div>
+  <button class="map-item" data-target="form-new">
+    <span class="map-dot">3</span>
+    <span class="map-txt"><span class="map-name">新增软件页</span><br><span class="map-step">路径第 3 步 · 名称必填</span></span>
+  </button>
+  <div class="map-line"></div>
+  <button class="map-item" data-target="form-edit">
+    <span class="map-dot">4</span>
+    <span class="map-txt"><span class="map-name">编辑软件页</span><br><span class="map-step">详情页底部入口 · 同一表单</span></span>
+  </button>
+
+  <div class="map-note">提示：手机内的列表项、顶部新增按钮、底部编辑按钮均可点击，支持左右滑动式转场与返回。</div>
+</aside>
+
+<script>
+/* ==========================================================
+ * 假数据：6 条软件记录（仅前端内存，刷新即还原）
+ * ========================================================== */
+const SOFTWARE = [
+  {
+    id: 's1',
+    name: 'Visual Studio Code',
+    icon: 'VS',
+    color: '#0B84D8',
+    tag: '开发工具',
+    url: 'https://code.visualstudio.com/Download',
+    funcs: '轻量但功能强大的跨平台代码编辑器，内置 Git 版本控制、集成终端、多语言语法高亮与调试能力，可通过插件扩展成任意开发环境。',
+    steps: [
+      '访问官网下载页，选择与电脑系统匹配的安装包（Windows x64 / Apple Silicon）',
+      '双击安装包，勾选「添加到 PATH」与「注册为受支持的文件类型编辑器」',
+      '选择安装位置后点击「下一步」，等待进度条完成',
+      '首次启动安装中文语言包，重启后界面即为中文',
+      '登录账号并开启设置同步，换设备后可一键还原插件与配置'
+    ],
+    notes: [
+      '安装时建议勾选「添加到 PATH」，方便在终端中直接使用 code 命令',
+      '插件、主题、快捷键建议开启 Settings Sync，重装系统后可快速恢复',
+      '公司内网下载插件市场资源需配置代理，否则扩展安装会失败'
+    ]
+  },
+  {
+    id: 's2',
+    name: 'Google Chrome',
+    icon: 'C',
+    color: '#4285F4',
+    tag: '浏览器',
+    url: 'https://www.google.cn/chrome/',
+    funcs: '主流浏览器，登录账号后可同步书签、密码、扩展与历史记录，兼容绝大多数网页与在线办公工具。',
+    steps: [
+      '打开官网下载页，点击「下载 Chrome」',
+      '运行下载好的 ChromeSetup.exe（需保持联网）',
+      '等待自动下载安装完成，浏览器会自动启动',
+      '首次启动可选择将 Chrome 设为默认浏览器',
+      '登录 Google 账号，开启同步'
+    ],
+    notes: [
+      '公司网络若无法访问官网，可使用可信渠道获取离线安装包',
+      '登录账号同步后，换设备登录即可恢复书签与密码，无需重新配置'
+    ]
+  },
+  {
+    id: 's3',
+    name: '微信开发者工具',
+    icon: '微',
+    color: '#07C160',
+    tag: '小程序开发',
+    url: 'https://developers.weixin.qq.com/miniprogram/dev/devtools/download.html',
+    funcs: '微信官方小程序开发环境，支持代码编辑、实时预览、真机调试、云开发控制台与代码上传审核。',
+    steps: [
+      '在下载页选择「稳定版 Stable Build」并下载对应系统版本',
+      '双击安装包，同意许可协议后完成安装',
+      '启动后用微信扫码登录，需为小程序管理员或开发者',
+      '新建项目，选择「小程序」，填入 AppID 与项目目录',
+      '勾选「不校验合法域名」后进入编辑器开始开发'
+    ],
+    notes: [
+      '必须使用有该小程序开发权限的微信扫码登录',
+      '使用云开发前需先在控制台开通云环境',
+      '旧项目首次打开可能提示更新基础库，按提示升级即可'
+    ]
+  },
+  {
+    id: 's4',
+    name: '7-Zip',
+    icon: '7z',
+    color: '#E8A33D',
+    tag: '压缩工具',
+    url: 'https://www.7-zip.org/download.html',
+    funcs: '免费开源的压缩 / 解压工具，支持 7z、ZIP、RAR、ISO 等常见格式，压缩率高且无广告弹窗。',
+    steps: [
+      '在下载页选择 64-bit Windows 安装包（.exe）',
+      '双击运行安装程序',
+      '按需修改安装路径',
+      '点击 Install 完成安装'
+    ],
+    notes: []
+  },
+  {
+    id: 's5',
+    name: 'Notion',
+    icon: 'N',
+    color: '#111827',
+    tag: '笔记协作',
+    url: 'https://www.notion.so/desktop',
+    funcs: '集笔记、文档、数据库与任务管理于一体的协作工具，支持块级编辑与多端实时同步。',
+    steps: [
+      '打开下载页，选择 Windows 桌面版',
+      '下载安装包并双击运行',
+      '登录或注册账号',
+      '选择个人使用模板，开始记录'
+    ],
+    notes: [
+      '数据存储在云端，国内访问速度受网络环境影响',
+      '重要内容建议定期导出 Markdown 做本地备份'
+    ]
+  },
+  {
+    id: 's6',
+    name: 'PotPlayer',
+    icon: 'P',
+    color: '#7C5CFF',
+    tag: '视频播放',
+    url: 'https://potplayer.daum.net/',
+    funcs: '轻量视频播放器，支持几乎所有主流音视频格式与硬件解码，启动快、资源占用低。',
+    steps: [],
+    notes: [
+      '安装时注意取消勾选的捆绑组件',
+      '下载前确认系统位数与版本匹配'
+    ]
+  }
+];
+
+/* ==========================================================
+ * 运行时状态与 DOM 引用
+ * ========================================================== */
+const state = {
+  stack: ['home'],   // 页面栈：home / detail / form
+  detailId: null,    // 当前详情页对应的软件 id
+  formMode: 'new',   // 'new' 新增 | 'edit' 编辑
+  formId: null       // 编辑时的软件 id
+};
+
+const PAGES = {
+  home: document.getElementById('page-home'),
+  detail: document.getElementById('page-detail'),
+  form: document.getElementById('page-form')
+};
+
+/* ==========================================================
+ * 通用工具
+ * ========================================================== */
+
+/** 转义文本，避免假数据中的特殊字符破坏结构 */
+function esc(str) {
+  return String(str == null ? '' : str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+/** 按 id 查找软件记录 */
+function findItem(id) {
+  return SOFTWARE.find(function (item) { return item.id === id; });
+}
+
+/** 统计某个软件的已填写字段数（下载地址 / 功能 / 安装方法 / 注意事项） */
+function countFilled(item) {
+  var n = 0;
+  if (item.url) n++;
+  if (item.funcs) n++;
+  if (item.steps && item.steps.length) n++;
+  if (item.notes && item.notes.length) n++;
+  return n;
+}
+
+/** 轻提示 */
+let toastTimer = null;
+function toast(msg) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(function () { el.classList.remove('show'); }, 1600);
+}
+
+/* ==========================================================
+ * 页面栈与转场：栈顶为 active，栈内其余页面左退为 behind
+ * ========================================================== */
+function syncPages() {
+  const topName = state.stack[state.stack.length - 1];
+  Object.keys(PAGES).forEach(function (name) {
+    const el = PAGES[name];
+    let target = 'off';
+    if (name === topName) {
+      target = 'active';
+    } else if (state.stack.indexOf(name) > -1) {
+      target = 'behind';
+    }
+    if (!el.classList.contains(target)) {
+      el.classList.remove('active', 'behind', 'off');
+      el.classList.add(target);
+    }
+  });
+  updateMapHighlight();
+}
+
+/** 入栈并播放进入转场 */
+function pushPage(name) {
+  if (state.stack[state.stack.length - 1] === name) {
+    syncPages();
+    return;
+  }
+  state.stack.push(name);
+  syncPages();
+}
+
+/** 出栈并播放返回转场 */
+function goBack() {
+  if (state.stack.length <= 1) return;
+  state.stack.pop();
+  syncPages();
+}
+
+/* ==========================================================
+ * 首屏：软件列表
+ * ========================================================== */
+
+/** 渲染首屏列表（名称 + 功能摘要 + 完整度） */
+function renderHome() {
+  const list = document.getElementById('home-list');
+  document.getElementById('home-count').textContent = SOFTWARE.length;
+
+  list.innerHTML = SOFTWARE.map(function (item) {
+    const filled = countFilled(item);
+    return (
+      '<button class="sw-item" data-id="' + item.id + '">' +
+        '<div class="sw-avatar" style="--c:' + item.color + '">' + esc(item.icon) + '</div>' +
+        '<div class="sw-info">' +
+          '<div class="sw-name">' + esc(item.name) + '</div>' +
+          '<div class="sw-desc">' + esc(item.funcs || '尚未填写功能说明') + '</div>' +
+        '</div>' +
+        '<div class="sw-side">' +
+          '<span class="sw-filled' + (filled === 4 ? ' full' : '') + '">' + filled + '/4</span>' +
+          '<span class="sw-chevron">' +
+            '<svg width="8" height="14" viewBox="0 0 8 14" fill="none">' +
+              '<path d="M1 1l6 6-6 6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>' +
+            '</svg>' +
+          '</span>' +
+        '</div>' +
+      '</button>'
+    );
+  }).join('');
+}
+
+/* ==========================================================
+ * 详情页
+ * ========================================================== */
+
+/** 渲染并打开某个软件的详情页 */
+function renderDetail(item) {
+  state.detailId = item.id;
+
+  const avatar = document.getElementById('detail-avatar');
+  avatar.textContent = item.icon;
+  avatar.style.setProperty('--c', item.color);
+
+  document.getElementById('detail-name').textContent = item.name;
+  const tagEl = document.getElementById('detail-tag');
+  tagEl.textContent = item.tag || '软件';
+
+  // 下载地址
+  document.getElementById('detail-url').innerHTML = item.url
+    ? '<div class="url-row">' +
+        '<span class="url-text">' + esc(item.url) + '</span>' +
+        '<button class="btn-copy" id="btn-copy">复制</button>' +
+      '</div>'
+    : '<div class="empty">未填写下载地址</div>';
+
+  // 核心功能
+  document.getElementById('detail-funcs').innerHTML = item.funcs
+    ? '<div class="block-text">' + esc(item.funcs) + '</div>'
+    : '<div class="empty">未填写功能说明</div>';
+
+  // 安装方法（按行编号）
+  document.getElementById('detail-steps').innerHTML = (item.steps && item.steps.length)
+    ? '<ol class="steps">' + item.steps.map(function (s, i) {
+        return '<li><span class="idx">' + (i + 1) + '</span><span class="txt">' + esc(s) + '</span></li>';
+      }).join('') + '</ol>'
+    : '<div class="empty">未填写安装步骤</div>';
+
+  // 注意事项
+  document.getElementById('detail-notes').innerHTML = (item.notes && item.notes.length)
+    ? '<ul class="notes">' + item.notes.map(function (n) {
+        return '<li>' + esc(n) + '</li>';
+      }).join('') + '</ul>'
+    : '<div class="empty">暂无注意事项</div>';
+
+  // 复制按钮
+  const copyBtn = document.getElementById('btn-copy');
+  if (copyBtn) {
+    copyBtn.addEventListener('click', function () {
+      if (navigator.clipboard && item.url) {
+        navigator.clipboard.writeText(item.url).catch(function () {});
+      }
+      toast('下载地址已复制');
+    });
+  }
+}
+
+/** 从列表进入详情 */
+function openDetail(id) {
+  const item = findItem(id);
+  if (!item) return;
+  renderDetail(item);
+  pushPage('detail');
+}
+
+/* ==========================================================
+ * 新增 / 编辑表单（同一页面，两种模式）
+ * ========================================================== */
+
+/** 渲染表单：item 为空表示新增，否则为编辑 */
+function renderForm(item) {
+  state.formMode = item ? 'edit' : 'new';
+  state.formId = item ? item.id : null;
+
+  document.getElementById('form-nav-title').textContent = item ? '编辑软件' : '新增软件';
+
+  document.getElementById('f-name').value = item ? item.name : '';
+  document.getElementById('f-url').value = item ? (item.url || '') : '';
+  document.getElementById('f-funcs').value = item ? (item.funcs || '') : '';
+  document.getElementById('f-steps').value = item ? (item.steps || []).join('\n') : '';
+  document.getElementById('f-notes').value = item ? (item.notes || []).join('\n') : '';
+
+  const nameField = document.getElementById('field-name');
+  nameField.classList.remove('error');
+  document.getElementById('btn-save').textContent = item ? '保存修改' : '保存';
+}
+
+/** 打开表单页 */
+function openForm(item) {
+  renderForm(item);
+  pushPage('form');
+}
+
+/** 保存：必填校验 → 写入内存数据 → 返回并刷新页面 */
+function saveForm() {
+  const nameEl = document.getElementById('f-name');
+  const nameField = document.getElementById('field-name');
+  const name = nameEl.value.trim();
+
+  if (!name) {
+    nameField.classList.remove('error');
+    void nameField.offsetWidth;   // 重置动画
+    nameField.classList.add('error');
+    nameEl.focus();
+    toast('请填写软件名称');
+    return;
+  }
+
+  /** 把多行文本切成去空的数组 */
+  function lines(id) {
+    return document.getElementById(id).value
+      .split('\n')
+      .map(function (s) { return s.trim(); })
+      .filter(Boolean);
+  }
+
+  const payload = {
+    name: name,
+    url: document.getElementById('f-url').value.trim(),
+    funcs: document.getElementById('f-funcs').value.trim(),
+    steps: lines('f-steps'),
+    notes: lines('f-notes')
+  };
+
+  if (state.formMode === 'edit' && state.formId) {
+    const target = findItem(state.formId);
+    if (target) {
+      Object.assign(target, payload);
+      renderDetail(target);     // 返回详情页时展示最新内容
+      renderHome();
+      toast('修改已保存');
+    }
+  } else {
+    const created = {
+      id: 'u' + Date.now(),
+      icon: name.slice(0, 1).toUpperCase(),
+      color: '#6B7280',
+      tag: '自定义',
+      name: payload.name,
+      url: payload.url,
+      funcs: payload.funcs,
+      steps: payload.steps,
+      notes: payload.notes
+    };
+    SOFTWARE.unshift(created);
+    renderHome();
+    toast('新增成功');
+  }
+
+  // 等 toast 出现后再返回上一页
+  setTimeout(goBack, 260);
+}
+
+/* ==========================================================
+ * 页面地图联动
+ * ========================================================== */
+function updateMapHighlight() {
+  const top = state.stack[state.stack.length - 1];
+  let key = 'home';
+  if (top === 'detail') key = 'detail';
+  if (top === 'form') key = state.formMode === 'edit' ? 'form-edit' : 'form-new';
+
+  document.querySelectorAll('.map-item').forEach(function (el) {
+    el.classList.toggle('current', el.dataset.target === key);
+  });
+}
+
+/** 页面地图点击跳转（重建页面栈，保证返回逻辑一致） */
+function jumpTo(target) {
+  const first = SOFTWARE[0];
+
+  if (target === 'home') {
+    state.stack = ['home'];
+    renderHome();
+    syncPages();
+    return;
+  }
+
+  if (target === 'detail') {
+    const item = findItem(state.detailId) || first;
+    state.stack = ['home', 'detail'];
+    renderHome();
+    renderDetail(item);
+    syncPages();
+    return;
+  }
+
+  if (target === 'form-new') {
+    state.stack = ['home', 'form'];
+    renderHome();
+    renderForm(null);
+    syncPages();
+    return;
+  }
+
+  if (target === 'form-edit') {
+    const item = findItem(state.detailId) || first;
+    state.stack = ['home', 'detail', 'form'];
+    renderHome();
+    renderDetail(item);
+    renderForm(item);
+    syncPages();
+  }
+}
+
+/* ==========================================================
+ * 事件绑定
+ * ========================================================== */
+
+// 首屏：列表点击进详情
+document.getElementById('home-list').addEventListener('click', function (e) {
+  const row = e.target.closest('.sw-item');
+  if (!row) return;
+  openDetail(row.dataset.id);
+});
+
+// 首屏：新增按钮
+document.getElementById('btn-add').addEventListener('click', function () {
+  openForm(null);
+});
+
+// 详情页：编辑按钮
+document.getElementById('btn-edit').addEventListener('click', function () {
+  const item = findItem(state.detailId);
+  if (item) openForm(item);
+});
+
+// 表单页：保存按钮
+document.getElementById('btn-save').addEventListener('click', saveForm);
+
+// 返回按钮（所有页面通用）
+document.querySelectorAll('[data-back]').forEach(function (btn) {
+  btn.addEventListener('click', goBack);
+});
+
+// 输入时清除错误态
+document.getElementById('f-name').addEventListener('input', function () {
+  document.getElementById('field-name').classList.remove('error');
+});
+
+// 页面地图
+document.querySelectorAll('.map-item').forEach(function (el) {
+  el.addEventListener('click', function () { jumpTo(el.dataset.target); });
+});
+
+// 键盘 Esc 返回（便于桌面演示）
+document.addEventListener('keydown', function (e) {
+  if (e.key === 'Escape') goBack();
+});
+
+/* ==========================================================
+ * 初始化
+ * ========================================================== */
+renderHome();
+syncPages();
+</script>
+</body>
+</html>
